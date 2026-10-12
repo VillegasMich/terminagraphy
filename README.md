@@ -5,9 +5,11 @@ A terminal typing trainer (mecanografía) written in Rust with
 as you can against the clock, review your metrics, and track your progress and
 daily streak over time.
 
-> Status: early development. See [docs/ROADMAP.md](docs/ROADMAP.md).
+> Status: first playable version. See [docs/ROADMAP.md](docs/ROADMAP.md) for what is next.
 
-## Features (planned)
+![Typing a Spanish paragraph](docs/screenshots/typing.svg)
+
+## Features
 
 - Centered paragraph typing with live correct/incorrect highlighting.
 - Timed modes: **30 seconds**, **2 minutes**, **5 minutes**.
@@ -16,6 +18,17 @@ daily streak over time.
 - End-of-session metrics: WPM, raw WPM, accuracy, consistency, errors.
 - Local history with personal bests per language + mode.
 - Daily tracker: streaks and a calendar heatmap of days played.
+
+## Screenshots
+
+| Menu | Results |
+|------|---------|
+| ![Menu](docs/screenshots/menu.svg) | ![Results](docs/screenshots/results.svg) |
+
+![Stats and daily tracker](docs/screenshots/stats.svg)
+
+Screenshots are rendered from the real UI with simulated input and history.
+Regenerate them with `cargo test screenshots -- --ignored`.
 
 ## Install & run
 
@@ -28,7 +41,7 @@ cargo install --path .
 terminagraphy
 ```
 
-Planned flags:
+Flags:
 
 ```sh
 terminagraphy --lang es --mode 2m   # jump straight into a session
@@ -37,23 +50,32 @@ terminagraphy --data-dir ./mydata   # custom storage location
 
 ## Controls
 
-| Key | Action |
-|-----|--------|
-| type | Type the paragraph; timer starts on first key |
-| `Backspace` | Delete previous character |
-| `Tab` | Restart the current mode |
-| `Esc` | Abort session / go back |
-| `q` | Quit (from menus) |
+| Screen | Key | Action |
+|--------|-----|--------|
+| Menu | `↑` `↓` | Switch between language and mode |
+| Menu | `←` `→` | Change the selected value |
+| Menu | `Enter` | Start session |
+| Menu | `s` / `t` | Stats / toggle live stats |
+| Typing | type | Type the paragraph; timer starts on first key |
+| Typing | `Backspace` | Delete previous character |
+| Typing | `Ctrl+W` / `Ctrl+Backspace` | Delete previous word |
+| Typing | `Tab` | Restart the current mode |
+| Typing | `Esc` | Abort session (not saved) |
+| Results | `Enter` / `s` / `Esc` | Retry / stats / menu |
+| Stats | `←` `→` / `↑` `↓` | Change mode / language |
+| Any | `q`, `Ctrl+C` | Quit (`q` not while typing) |
 
 ## Data
 
 Stored locally only, nothing is sent anywhere.
 
-| OS | History |
-|----|---------|
-| Linux | `~/.local/share/terminagraphy/history.jsonl` |
-| macOS | `~/Library/Application Support/terminagraphy/history.jsonl` |
-| Windows | `%APPDATA%\terminagraphy\data\history.jsonl` |
+| OS | History | Settings |
+|----|---------|----------|
+| Linux | `~/.local/share/terminagraphy/history.jsonl` | `~/.config/terminagraphy/config.toml` |
+| macOS | `~/Library/Application Support/terminagraphy/history.jsonl` | `~/Library/Application Support/terminagraphy/config.toml` |
+| Windows | `%APPDATA%\terminagraphy\data\history.jsonl` | `%APPDATA%\terminagraphy\config\config.toml` |
+
+With `--data-dir <dir>` both files live in `<dir>`.
 
 ## Documentation
 

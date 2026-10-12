@@ -28,6 +28,13 @@ cargo fmt
 Before considering work done: `cargo fmt`, `cargo clippy --all-targets -- -D warnings`
 and `cargo test` must pass.
 
+After visible UI changes, refresh the README screenshots (`docs/screenshots/*.svg`,
+rendered from `TestBackend` buffers by `src/ui/screenshots.rs`):
+
+```sh
+cargo test screenshots -- --ignored
+```
+
 The TUI cannot be meaningfully driven from a non-interactive shell. Verify
 logic through unit tests and UI through `ratatui::backend::TestBackend`
 render tests instead of launching the binary.

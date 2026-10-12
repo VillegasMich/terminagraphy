@@ -5,7 +5,7 @@
 | Concern | Crate | Notes |
 |---------|-------|-------|
 | TUI rendering | `ratatui` | Required. Use `ratatui::init()` / `ratatui::restore()` for terminal setup + panic-safe teardown |
-| Terminal backend / input | `crossterm` | Default ratatui backend; key events via `crossterm::event` |
+| Terminal backend / input | `crossterm` | Default ratatui backend; key events via `crossterm::event`. Keep the version equal to the one ratatui uses (check `Cargo.lock` for a single `crossterm` entry) |
 | Error handling | `color-eyre` | Pretty errors + panic hook that restores the terminal (or `anyhow` if simpler) |
 | Serialization | `serde`, `serde_json`, `toml` | History as JSON Lines, config as TOML |
 | Data paths | `directories` | `ProjectDirs` for cross-platform data/config dirs |
@@ -14,7 +14,7 @@
 | Unicode | `unicode-segmentation`, `unicode-normalization` | Grapheme-based matching, NFC normalize targets + input (Spanish accents) |
 | Width | `unicode-width` | Correct column math when wrapping/centering |
 | CLI | `clap` (derive) | Optional flags: `--lang`, `--mode`, `--data-dir` |
-| Tests | `insta` (optional) | Snapshot tests of rendered frames via `ratatui::backend::TestBackend` |
+| Tests | `tempfile` | Isolated data dirs. Rendered frames are checked via `ratatui::backend::TestBackend` (`insta` snapshots optional later) |
 
 Add crates with `cargo add <name>` to get current versions; do not hand-pin
 old versions.
@@ -45,8 +45,10 @@ complex later, migrate to `rusqlite` behind the same `storage` trait.
 ```
 
 - `App` owns all state, including the current `Screen`.
-- Event loop polls crossterm with a short timeout (~16–50 ms) and emits
+- Event loop polls crossterm with a short timeout (50 ms) and emits
   `Tick` events so the timer and live WPM update without input.
+- The loop captures the clock once per step as `app::Now { instant, local }`
+  and passes it down; nothing below the loop reads the clock.
 - Side effects (saving history, loading paragraphs) happen in `update` via
   explicit calls into `storage`, never in `view`.
 
@@ -126,8 +128,12 @@ pub struct SessionRecord {
 }
 ```
 
-The keystroke log is the single source of truth for metrics; all numbers are
-derived from it so they are testable without a terminal.
+Metrics come from two inputs, both terminal-free and testable:
+
+- the **keystroke log** → accuracy, raw WPM, errors, per-second samples, consistency;
+- the **final text totals** (`TextTotals`: correct chars and uncorrected errors
+  left in each paragraph) → net WPM, so retyping a correct character after an
+  accidental backspace does not inflate WPM.
 
 ## Timing
 
