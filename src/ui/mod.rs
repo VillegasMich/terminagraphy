@@ -85,7 +85,11 @@ mod tests {
     use ratatui::backend::TestBackend;
 
     use super::*;
-    use crate::storage::{DataPaths, Settings};
+    use crate::app::ResultsState;
+    use crate::content::Language;
+    use crate::game::Mode;
+    use crate::game::metrics::{TextTotals, compute};
+    use crate::storage::{DataPaths, SessionRecord, Settings};
 
     fn buffer_text(terminal: &Terminal<TestBackend>) -> String {
         let buf = terminal.backend().buffer();
@@ -118,6 +122,30 @@ mod tests {
         assert!(text.contains("terminagraphy"));
         assert!(text.contains("English"));
         assert!(text.contains("2m"));
+    }
+
+    fn results_app(used_tatoeba: bool) -> App {
+        let mut app = app();
+        let metrics = compute(&[], Mode::Sprint.duration(), TextTotals::default());
+        let record = SessionRecord::new(&metrics, Mode::Sprint, Language::Es, chrono::Local::now());
+        app.screen = Screen::Results(Box::new(ResultsState {
+            record,
+            metrics,
+            previous_best: None,
+            save_error: None,
+            used_tatoeba,
+        }));
+        app
+    }
+
+    #[test]
+    fn results_credit_tatoeba_only_when_used() {
+        let with = draw(&results_app(true), 80, 24);
+        assert!(with.contains(results::TATOEBA_ATTRIBUTION), "{with}");
+        let without = draw(&results_app(false), 80, 24);
+        assert!(!without.contains("Tatoeba"), "{without}");
+        let min = draw(&results_app(true), MIN_WIDTH, MIN_HEIGHT);
+        assert!(min.contains(results::TATOEBA_ATTRIBUTION), "{min}");
     }
 
     #[test]

@@ -16,6 +16,9 @@ pub struct Settings {
     pub mode: Mode,
     /// Show WPM / accuracy while typing.
     pub show_live_stats: bool,
+    /// Fetch paragraphs from tatoeba.org in the background. When `false`
+    /// only the embedded corpus is used.
+    pub online: bool,
 }
 
 impl Default for Settings {
@@ -24,6 +27,7 @@ impl Default for Settings {
             language: Language::default(),
             mode: Mode::default(),
             show_live_stats: true,
+            online: true,
         }
     }
 }
@@ -70,6 +74,7 @@ mod tests {
             language: Language::Es,
             mode: Mode::Endurance,
             show_live_stats: false,
+            online: false,
         };
         save(&path, &settings).unwrap();
         let (loaded, warning) = load(&path).unwrap();
@@ -87,6 +92,21 @@ mod tests {
         assert_eq!(loaded.language, Language::Es);
         assert_eq!(loaded.mode, Mode::default());
         assert!(loaded.show_live_stats);
+        assert!(
+            loaded.online,
+            "configs written before `online` existed stay online"
+        );
+    }
+
+    #[test]
+    fn online_defaults_to_true_and_can_be_disabled() {
+        assert!(Settings::default().online);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        std::fs::write(&path, "online = false\n").unwrap();
+        let (loaded, warning) = load(&path).unwrap();
+        assert!(!loaded.online);
+        assert!(warning.is_none());
     }
 
     #[test]

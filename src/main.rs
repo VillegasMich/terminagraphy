@@ -3,6 +3,7 @@ mod content;
 mod event;
 mod game;
 mod storage;
+mod tatoeba;
 mod ui;
 
 use std::path::PathBuf;
@@ -15,6 +16,7 @@ use ratatui::DefaultTerminal;
 use app::{App, Now};
 use content::Language;
 use game::Mode;
+use storage::paragraph_cache::{self, SharedCache};
 use storage::{DataPaths, config, history};
 
 /// How long to wait for input before redrawing (timer refresh rate).
@@ -30,9 +32,12 @@ struct Args {
     /// Session length; skips the menu and starts a session.
     #[arg(long, value_enum)]
     mode: Option<Mode>,
-    /// Directory for history and settings (default: OS data/config dirs).
+    /// Directory for history, settings and the paragraph cache (default: OS data/config dirs).
     #[arg(long)]
     data_dir: Option<PathBuf>,
+    /// Use only the built-in paragraphs; don't fetch from tatoeba.org this run.
+    #[arg(long)]
+    offline: bool,
 }
 
 fn main() -> Result<()> {
@@ -51,9 +56,32 @@ fn main() -> Result<()> {
             paths.history.display()
         ));
     }
+
+    let online = settings.online && !args.offline;
+    let cache_path = paths.paragraph_cache.clone();
+    // An unreadable cache is not fatal: sessions fall back to the embedded corpus.
+    if online
+        && let Ok(cached) = paragraph_cache::load(&cache_path)
+        && cached.skipped > 0
+    {
+        notices.push(format!(
+            "Skipped {} unreadable line(s) in {}",
+            cached.skipped,
+            cache_path.display()
+        ));
+    }
     let notice = (!notices.is_empty()).then(|| notices.join(" · "));
 
     let mut app = App::new(paths, settings.clone(), report.records, notice);
+    if online {
+        let cache = SharedCache::new(cache_path);
+        // Without the prefetch thread, already-cached paragraphs are still used.
+        let cache = match tatoeba::spawn_prefetch(cache.clone()) {
+            Ok(wake) => cache.notify_on_take(wake),
+            Err(_) => cache,
+        };
+        app = app.with_paragraph_cache(cache);
+    }
     if args.lang.is_some() || args.mode.is_some() {
         app.start_session(
             args.lang.unwrap_or(settings.language),

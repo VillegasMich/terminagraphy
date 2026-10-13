@@ -5,6 +5,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::content::Language;
 use crate::game::{Metrics, Mode, Session};
+use crate::storage::paragraph_cache::{CachedSupply, SharedCache};
 use crate::storage::{DailyTracker, DataPaths, SessionRecord, Settings, config, history};
 
 /// Clock readings taken once per loop iteration by the event loop.
@@ -36,6 +37,8 @@ pub struct ResultsState {
     /// Best WPM in this category before this session, if any.
     pub previous_best: Option<f64>,
     pub save_error: Option<String>,
+    /// Some typed text came from Tatoeba and must be attributed.
+    pub used_tatoeba: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,6 +58,8 @@ pub struct App {
     pub notice: Option<String>,
     pub should_quit: bool,
     paths: DataPaths,
+    /// Cache of online paragraphs; `None` when offline (embedded corpus only).
+    paragraph_cache: Option<SharedCache>,
 }
 
 impl App {
@@ -75,6 +80,24 @@ impl App {
             notice,
             should_quit: false,
             paths,
+            paragraph_cache: None,
+        }
+    }
+
+    /// Serves sessions from `cache` first, falling back to the embedded corpus.
+    pub fn with_paragraph_cache(mut self, cache: SharedCache) -> Self {
+        self.paragraph_cache = Some(cache);
+        self
+    }
+
+    fn new_session(&self, mode: Mode, language: Language) -> Session {
+        match &self.paragraph_cache {
+            Some(cache) => Session::with_supply(
+                mode,
+                language,
+                Box::new(CachedSupply::new(cache.clone(), language)),
+            ),
+            None => Session::new(mode, language),
         }
     }
 
@@ -84,7 +107,7 @@ impl App {
             self.settings.mode = mode;
             self.save_settings();
         }
-        self.screen = Screen::Typing(Box::new(Session::new(mode, language)));
+        self.screen = Screen::Typing(Box::new(self.new_session(mode, language)));
     }
 
     fn save_settings(&mut self) {
@@ -126,6 +149,7 @@ impl App {
             metrics,
             previous_best,
             save_error,
+            used_tatoeba: session.used_tatoeba(),
         }));
     }
 
@@ -191,7 +215,7 @@ impl App {
             }
             KeyCode::Tab => {
                 let (mode, language) = (session.mode, session.language);
-                self.screen = Screen::Typing(Box::new(Session::new(mode, language)));
+                self.screen = Screen::Typing(Box::new(self.new_session(mode, language)));
                 return;
             }
             KeyCode::Backspace if ctrl || alt => session.delete_word(now.instant),

@@ -48,6 +48,7 @@ fn screenshots() {
         language: Language::Es,
         mode: Mode::Sprint,
         show_live_stats: true,
+        online: false,
     };
     let paths = DataPaths::resolve(Some(data_dir.path())).unwrap();
     let mut app = App::new(paths, settings, fake_history(&mut rng, &now), None);

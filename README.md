@@ -14,7 +14,9 @@ daily streak over time.
 - Centered paragraph typing with live correct/incorrect highlighting.
 - Timed modes: **30 seconds**, **2 minutes**, **5 minutes**.
 - Endless stream of unrelated paragraphs within a session.
-- **English** and **Spanish** paragraph sets (full accent support: á é í ó ú ü ñ ¿ ¡).
+- **English** and **Spanish** paragraphs (full accent support: á é í ó ú ü ñ ¿ ¡),
+  built from random [Tatoeba](https://tatoeba.org) sentences (CC BY 2.0 FR)
+  downloaded in the background, with a built-in set as offline fallback.
 - End-of-session metrics: WPM, raw WPM, accuracy, consistency, errors.
 - Local history with personal bests per language + mode.
 - Daily tracker: streaks and a calendar heatmap of days played.
@@ -46,7 +48,10 @@ Flags:
 ```sh
 terminagraphy --lang es --mode 2m   # jump straight into a session
 terminagraphy --data-dir ./mydata   # custom storage location
+terminagraphy --offline             # built-in paragraphs only, no network
 ```
+
+Set `online = false` in `config.toml` to stay offline permanently.
 
 ## Controls
 
@@ -67,7 +72,9 @@ terminagraphy --data-dir ./mydata   # custom storage location
 
 ## Data
 
-Stored locally only, nothing is sent anywhere.
+Stored locally only, nothing is sent anywhere. The only network access is
+downloading random sentences from `api.tatoeba.org` (skipped with `--offline`);
+they are cached in `paragraph_cache.jsonl` next to the history.
 
 | OS | History | Settings |
 |----|---------|----------|
@@ -75,7 +82,7 @@ Stored locally only, nothing is sent anywhere.
 | macOS | `~/Library/Application Support/terminagraphy/history.jsonl` | `~/Library/Application Support/terminagraphy/config.toml` |
 | Windows | `%APPDATA%\terminagraphy\data\history.jsonl` | `%APPDATA%\terminagraphy\config\config.toml` |
 
-With `--data-dir <dir>` both files live in `<dir>`.
+With `--data-dir <dir>` all files live in `<dir>`.
 
 ## Documentation
 
