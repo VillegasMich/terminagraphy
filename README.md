@@ -1,5 +1,7 @@
 # terminagraphy
 
+[![CI](https://github.com/VillegasMich/terminagraphy/actions/workflows/ci.yml/badge.svg)](https://github.com/VillegasMich/terminagraphy/actions/workflows/ci.yml)
+
 A terminal typing trainer (mecanografía) written in Rust with
 [ratatui](https://ratatui.rs). Type unrelated paragraphs as fast and accurately
 as you can against the clock, review your metrics, and track your progress and
@@ -34,7 +36,8 @@ Regenerate them with `cargo test screenshots -- --ignored`.
 
 ## Install & run
 
-Requires a recent stable Rust toolchain (edition 2024).
+Requires Rust 1.88 or newer (edition 2024; the minimum is `rust-version` in
+`Cargo.toml` and is checked in CI).
 
 ```sh
 cargo run --release
