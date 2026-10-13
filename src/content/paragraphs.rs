@@ -2,9 +2,33 @@ use std::sync::OnceLock;
 
 use rand::Rng;
 use rand::seq::SliceRandom;
+use serde::{Deserialize, Serialize};
 use unicode_normalization::UnicodeNormalization;
 
 use super::Language;
+
+/// Where a paragraph's text came from; shown as attribution on the results screen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Source {
+    /// The corpus compiled into the binary (`assets/paragraphs/`).
+    Embedded,
+    /// Sentences fetched from tatoeba.org (CC BY 2.0 FR).
+    Tatoeba,
+}
+
+/// One paragraph to type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Paragraph {
+    pub text: String,
+    pub source: Source,
+}
+
+/// Hands a session its paragraphs. Implementations that do I/O are built
+/// outside game logic and injected into the session.
+pub trait ParagraphSupply: std::fmt::Debug {
+    fn next_paragraph(&mut self) -> Paragraph;
+}
 
 const EN: &str = include_str!("../../assets/paragraphs/en.txt");
 const ES: &str = include_str!("../../assets/paragraphs/es.txt");
@@ -70,10 +94,6 @@ impl ParagraphPicker {
         }
     }
 
-    pub fn next_paragraph(&mut self) -> &'static str {
-        self.next_with(&mut rand::rng())
-    }
-
     pub fn next_with<R: Rng + ?Sized>(&mut self, rng: &mut R) -> &'static str {
         if self.pos >= self.order.len() {
             let last = self.order.last().copied();
@@ -91,6 +111,15 @@ impl ParagraphPicker {
     }
 }
 
+impl ParagraphSupply for ParagraphPicker {
+    fn next_paragraph(&mut self) -> Paragraph {
+        Paragraph {
+            text: self.next_with(&mut rand::rng()).to_owned(),
+            source: Source::Embedded,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
@@ -100,10 +129,7 @@ mod tests {
     use unicode_normalization::is_nfc;
 
     use super::*;
-
-    /// Paragraph length range from docs/CONTENT.md.
-    const MIN_LEN: usize = 150;
-    const MAX_LEN: usize = 400;
+    use crate::content::sanitize::{MAX_LEN, MIN_LEN, is_allowed};
 
     #[test]
     fn parse_joins_lines_and_skips_comments() {
@@ -134,12 +160,6 @@ mod tests {
         }
     }
 
-    fn allowed(c: char, language: Language) -> bool {
-        c.is_ascii_alphanumeric()
-            || " .,;:!?'\"-()".contains(c)
-            || (language == Language::Es && "áéíóúüñÁÉÍÓÚÜÑ¿¡".contains(c))
-    }
-
     #[test]
     fn corpus_follows_content_guidelines() {
         for language in Language::ALL {
@@ -152,7 +172,7 @@ mod tests {
                     "{language:?} paragraph has {len} chars: {p}"
                 );
                 assert!(is_nfc(p), "{language:?} paragraph not NFC: {p}");
-                if let Some(bad) = p.chars().find(|c| !allowed(*c, language)) {
+                if let Some(bad) = p.chars().find(|c| !is_allowed(*c, language)) {
                     panic!("{language:?} paragraph has disallowed char {bad:?}: {p}");
                 }
             }

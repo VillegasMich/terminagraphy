@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use super::input::{InputOutcome, TypingBuffer};
 use super::metrics::{self, KeyKind, Keystroke, Metrics, TextTotals};
 use super::mode::Mode;
-use crate::content::{Language, ParagraphPicker};
+use crate::content::{Language, Paragraph, ParagraphPicker, ParagraphSupply, Source};
 
 /// Minimum elapsed time used for live WPM so the first keystrokes don't spike it.
 const LIVE_WPM_MIN_ELAPSED: Duration = Duration::from_secs(1);
@@ -18,33 +18,42 @@ pub enum SessionState {
 
 /// One timed typing session. Every time-dependent method takes `now` so the
 /// caller (the event loop) is the only place reading the clock.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Session {
     pub mode: Mode,
     pub language: Language,
     started: Option<Instant>,
     finished: bool,
-    picker: ParagraphPicker,
+    supply: Box<dyn ParagraphSupply>,
     buffer: TypingBuffer,
+    /// Whether any paragraph shown so far came from Tatoeba (needs attribution).
+    used_tatoeba: bool,
     log: Vec<Keystroke>,
     /// Totals of paragraphs already completed (the current one is in `buffer`).
     committed: TextTotals,
 }
 
 impl Session {
+    /// A session over the embedded corpus only.
     pub fn new(mode: Mode, language: Language) -> Self {
-        Self::with_picker(mode, language, ParagraphPicker::new(language))
+        Self::with_supply(mode, language, Box::new(ParagraphPicker::new(language)))
     }
 
-    pub fn with_picker(mode: Mode, language: Language, mut picker: ParagraphPicker) -> Self {
-        let buffer = TypingBuffer::new(picker.next_paragraph());
+    /// A session drawing paragraphs from `supply`, which must yield `language` text.
+    pub fn with_supply(
+        mode: Mode,
+        language: Language,
+        mut supply: Box<dyn ParagraphSupply>,
+    ) -> Self {
+        let first = supply.next_paragraph();
         Self {
             mode,
             language,
             started: None,
             finished: false,
-            picker,
-            buffer,
+            used_tatoeba: first.source == Source::Tatoeba,
+            buffer: TypingBuffer::new(&first.text),
+            supply,
             log: Vec::new(),
             committed: TextTotals::default(),
         }
@@ -64,6 +73,11 @@ impl Session {
 
     pub fn buffer(&self) -> &TypingBuffer {
         &self.buffer
+    }
+
+    /// Whether any paragraph shown in this session came from Tatoeba.
+    pub fn used_tatoeba(&self) -> bool {
+        self.used_tatoeba
     }
 
     pub fn paragraphs_done(&self) -> u32 {
@@ -172,7 +186,13 @@ impl Session {
         self.committed.correct_chars += self.buffer.correct_count();
         self.committed.uncorrected_errors += self.buffer.wrong_count();
         self.committed.paragraphs += 1;
-        self.buffer = TypingBuffer::new(self.picker.next_paragraph());
+        let next = self.supply.next_paragraph();
+        self.load(next);
+    }
+
+    fn load(&mut self, paragraph: Paragraph) {
+        self.used_tatoeba |= paragraph.source == Source::Tatoeba;
+        self.buffer = TypingBuffer::new(&paragraph.text);
     }
 
     fn totals(&self) -> TextTotals {
@@ -284,6 +304,50 @@ mod tests {
         assert_eq!(m.uncorrected_errors, 0);
         assert_eq!(m.correct_chars, 1);
         assert_eq!(m.accuracy, 50.0);
+    }
+
+    /// Serves `first` (if any), then embedded paragraphs.
+    #[derive(Debug)]
+    struct Scripted {
+        first: Option<Paragraph>,
+        rest: ParagraphPicker,
+    }
+
+    impl ParagraphSupply for Scripted {
+        fn next_paragraph(&mut self) -> Paragraph {
+            self.first
+                .take()
+                .unwrap_or_else(|| self.rest.next_paragraph())
+        }
+    }
+
+    #[test]
+    fn embedded_session_does_not_use_tatoeba() {
+        let t0 = Instant::now();
+        let mut s = session();
+        let len = s.buffer().target().len();
+        type_target(&mut s, len, t0);
+        assert!(!s.used_tatoeba());
+    }
+
+    #[test]
+    fn tatoeba_paragraph_marks_session() {
+        let supply = Scripted {
+            first: Some(Paragraph {
+                text: "Short text.".into(),
+                source: Source::Tatoeba,
+            }),
+            rest: ParagraphPicker::new(Language::En),
+        };
+        let t0 = Instant::now();
+        let mut s = Session::with_supply(Mode::Sprint, Language::En, Box::new(supply));
+        assert_eq!(s.buffer().target().concat(), "Short text.");
+        type_target(&mut s, 11, t0);
+        assert_eq!(s.paragraphs_done(), 1);
+        assert!(
+            s.used_tatoeba(),
+            "flag stays set after the paragraph changes"
+        );
     }
 
     #[test]
