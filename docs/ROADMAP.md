@@ -41,7 +41,7 @@ Each milestone should end in a runnable, committed state.
 
 ## M6 — Polish / 1.0
 - [x] Corpus validation test.
-- [ ] ≥100 paragraphs per language (currently 30 each).
+- [x] Online paragraphs from Tatoeba (background prefetch, local cache of ~100 per language, `--offline` / `online = false`), embedded corpus kept as offline fallback.
 - [x] Small-terminal handling, resize handling.
 - [x] Theme module (`ui/theme.rs`).
 - [ ] Color fallback for limited terminals (heatmap uses 256-color palette).

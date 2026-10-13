@@ -14,7 +14,7 @@ Main menu ──► pick language + mode ──► Typing session ──► Resu
 ```
 
 1. Player selects a **language** (English / Español) and a **mode** (30s, 2m, 5m).
-2. A random paragraph appears centered on screen. The timer is shown but does
+2. A random paragraph appears centered on screen (see [Paragraph source](#paragraph-source)). The timer is shown but does
    **not** start until the first keystroke.
 3. The player types. Each character is checked against the target as it is typed.
 4. When the paragraph is fully typed, the next paragraph (unrelated, randomly
@@ -39,6 +39,20 @@ Languages:
 - **Spanish** (`es`) — paragraphs contain accented characters (á é í ó ú ü ñ ¿ ¡).
   These must be typed exactly; no accent-insensitive matching in the default
   rules (a possible future "lenient accents" setting is listed in the roadmap).
+
+## Paragraph source
+
+- **Online (default)**: paragraphs are built from random Tatoeba sentences
+  that a background thread downloads ahead of time into a local cache.
+  Starting a session never waits for the network.
+- **Offline**: with `--offline`, `online = false` in `config.toml`, no
+  network, or an empty cache for the chosen language, the built-in corpus is
+  used, exactly as before. The game never hangs or fails because of the
+  network.
+- A session uses cached paragraphs while they last and only then switches to
+  the built-in corpus.
+
+See `docs/CONTENT.md` for the cleaning and assembly rules.
 
 Language + mode together form a **category**. Personal bests and charts are
 tracked per category (e.g. `es / 2m`).
@@ -105,6 +119,9 @@ All computed from the keystroke log of the session (see ARCHITECTURE.md).
 - Secondary: raw WPM, consistency, errors, characters, paragraphs.
 - A WPM-over-time line chart (per-second samples) with errors marked.
 - Comparison with personal best for this category ("+4 WPM vs best", "New PB!").
+- If any paragraph shown in the session came from Tatoeba, a dim attribution
+  line above the key hints: `Text: Tatoeba (tatoeba.org) · CC BY 2.0 FR`.
+  This is the only place attribution is shown.
 - Actions: `Enter`/`Tab` retry same mode, `s` stats, `m`/`Esc` menu.
 
 ## Stats screen
@@ -133,6 +150,6 @@ day is missed).
 
 ## Out of scope (for now)
 
-- Online leaderboards / accounts.
+- Online leaderboards / accounts (the only network use is fetching paragraphs).
 - Multiplayer.
 - Word-count modes, custom text import, code-typing mode (see roadmap ideas).

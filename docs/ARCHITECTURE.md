@@ -13,7 +13,8 @@
 | Randomness | `rand` | Paragraph shuffling |
 | Unicode | `unicode-segmentation`, `unicode-normalization` | Grapheme-based matching, NFC normalize targets + input (Spanish accents) |
 | Width | `unicode-width` | Correct column math when wrapping/centering |
-| CLI | `clap` (derive) | Optional flags: `--lang`, `--mode`, `--data-dir` |
+| CLI | `clap` (derive) | Optional flags: `--lang`, `--mode`, `--data-dir`, `--offline` |
+| HTTP | `ureq` (no default features, `rustls`) | Fetches Tatoeba sentences from a background thread. Small, blocking (no async runtime), pure-Rust TLS (no OpenSSL); one plain thread is all the prefetch needs, so `reqwest`/`tokio` would be overkill |
 | Tests | `tempfile` | Isolated data dirs. Rendered frames are checked via `ratatui::backend::TestBackend` (`insta` snapshots optional later) |
 
 Add crates with `cargo add <name>` to get current versions; do not hand-pin
@@ -51,6 +52,18 @@ complex later, migrate to `rusqlite` behind the same `storage` trait.
   and passes it down; nothing below the loop reads the clock.
 - Side effects (saving history, loading paragraphs) happen in `update` via
   explicit calls into `storage`, never in `view`.
+- **Prefetch thread**: when online, `main` starts one detached thread
+  (`tatoeba::spawn_prefetch`) before the loop. It refills each language's
+  paragraph cache when it holds fewer than 30 paragraphs, up to 100, then
+  waits on a bounded `mpsc::sync_channel(1)` for a wake-up (sent after each
+  cache `take`) or a 10-minute re-check. It never blocks the UI: the cache
+  file is guarded by a `Mutex` held only for one small file operation, never
+  across network calls. The thread is never joined, so it cannot keep the
+  process alive on quit.
+- Sessions get their paragraphs through the `content::ParagraphSupply`
+  trait. `App` injects either `storage::paragraph_cache::CachedSupply` (cache,
+  then embedded fallback) or the embedded `ParagraphPicker`; `game/` itself
+  does no I/O.
 
 ## Module layout (target)
 
@@ -68,12 +81,15 @@ src/
 ├── content/
 │   ├── mod.rs
 │   ├── language.rs      # Language enum (En, Es)
-│   └── paragraphs.rs    # Embedded corpus, shuffle-bag picker (no repeats)
+│   ├── paragraphs.rs    # Embedded corpus, shuffle-bag picker, Paragraph/Source, ParagraphSupply
+│   └── sanitize.rs      # Content rules: allowed chars, sentence cleanup, paragraph assembly
 ├── storage/
 │   ├── mod.rs           # data dir resolution
 │   ├── history.rs       # SessionRecord, append/load jsonl
 │   ├── tracker.rs       # daily tracker: days played, streaks, heatmap data
-│   └── config.rs        # Settings (default lang/mode, show live stats, theme)
+│   ├── paragraph_cache.rs # cached online paragraphs (jsonl), SharedCache, CachedSupply
+│   └── config.rs        # Settings (default lang/mode, show live stats, online)
+├── tatoeba.rs           # Tatoeba API client (ureq), response parsing, refill + prefetch thread
 └── ui/
     ├── mod.rs           # view() dispatch per Screen
     ├── theme.rs         # colors/styles in one place
@@ -148,13 +164,15 @@ Metrics come from two inputs, both terminal-free and testable:
 |------|----------|--------|
 | `history.jsonl` | data dir | One `SessionRecord` per line, append-only |
 | `config.toml` | config dir | User settings |
+| `paragraph_cache.jsonl` | data dir | One `{version, language, text, source}` per line; paragraphs are removed once served to a session |
 
 The daily tracker is **derived** from `history.jsonl` (distinct local dates of
 `ended_at`) rather than stored separately — one source of truth, no drift.
 
 Write rules:
 - Append with `OpenOptions::append`, write whole line + `\n`, flush.
-- Any full-file rewrite (config) goes to a temp file then `rename`.
+- Any full-file rewrite (config, paragraph cache after a `take`) goes to a
+  temp file then `rename`.
 - Every record has `version` for future migrations.
 - `--data-dir` flag overrides location (used by tests and for portability).
 
@@ -164,6 +182,9 @@ Write rules:
   `storage::tracker` (streak edge cases: today/yesterday, gaps, month/year
   boundaries), paragraph picker (no repeats until exhausted).
 - **Storage tests**: use `tempfile` dirs; verify corrupted lines are skipped.
+- **Network**: tests never hit the network. Response parsing is a pure
+  function tested against an invented JSON fixture; the refill logic takes the
+  fetch function as a parameter and is tested with fakes.
 - **UI tests**: render screens into `TestBackend` and assert / snapshot the
   buffer. Keep UI logic thin so few of these are needed.
 - Inject time: metric/session functions take `Duration`/timestamps as params
