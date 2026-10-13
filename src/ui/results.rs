@@ -8,11 +8,15 @@ use super::{key_hints, theme};
 use crate::app::ResultsState;
 use crate::game::Metrics;
 
+/// Credit required by the CC BY license of Tatoeba sentences.
+pub const TATOEBA_ATTRIBUTION: &str = "Text: Tatoeba (tatoeba.org) · CC BY 2.0 FR";
+
 pub fn render(frame: &mut Frame, area: Rect, results: &ResultsState) {
-    let [headline, details, chart, footer] = Layout::vertical([
+    let [headline, details, chart, attribution, footer] = Layout::vertical([
         Constraint::Length(4),
         Constraint::Length(3),
         Constraint::Min(0),
+        Constraint::Length(u16::from(results.used_tatoeba)),
         Constraint::Length(1),
     ])
     .areas(area.inner(ratatui::layout::Margin::new(1, 0)));
@@ -71,6 +75,13 @@ pub fn render(frame: &mut Frame, area: Rect, results: &ResultsState) {
 
     if chart.height >= 4 {
         frame.render_widget(ChartData::new(m).chart(), chart);
+    }
+
+    if results.used_tatoeba {
+        frame.render_widget(
+            Line::styled(TATOEBA_ATTRIBUTION, theme::ATTRIBUTION).centered(),
+            attribution,
+        );
     }
 
     frame.render_widget(

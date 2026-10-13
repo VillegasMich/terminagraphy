@@ -17,6 +17,8 @@ pub const SELECTED: Style = Style::new().fg(ACCENT).add_modifier(Modifier::BOLD)
 pub const NOTICE: Style = Style::new().fg(Color::Yellow);
 pub const ERROR: Style = Style::new().fg(BAD);
 pub const SUCCESS: Style = Style::new().fg(GOOD).add_modifier(Modifier::BOLD);
+/// Source credit for fetched text on the results screen.
+pub const ATTRIBUTION: Style = Style::new().fg(Color::DarkGray);
 
 // Typing area.
 pub const PENDING: Style = Style::new().fg(Color::DarkGray);
