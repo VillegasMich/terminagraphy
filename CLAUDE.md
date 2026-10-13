@@ -28,6 +28,9 @@ cargo fmt
 Before considering work done: `cargo fmt`, `cargo clippy --all-targets -- -D warnings`
 and `cargo test` must pass.
 
+CI (`.github/workflows/ci.yml`) runs the same fmt/clippy/test checks on
+Linux/macOS/Windows plus an MSRV check, so respect `rust-version` in `Cargo.toml`.
+
 After visible UI changes, refresh the README screenshots (`docs/screenshots/*.svg`,
 rendered from `TestBackend` buffers by `src/ui/screenshots.rs`):
 
